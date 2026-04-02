@@ -65,9 +65,9 @@ nanocoder -m kimi-k2.5
 export OPENAI_API_KEY=your-key OPENAI_BASE_URL=https://openrouter.ai/api/v1
 nanocoder -m anthropic/claude-opus-4-6
 
-# GPT-4o
+# OpenAI GPT-5
 export OPENAI_API_KEY=sk-...
-nanocoder -m gpt-4o
+nanocoder -m gpt-5
 
 # DeepSeek V3
 export OPENAI_API_KEY=sk-... OPENAI_BASE_URL=https://api.deepseek.com
