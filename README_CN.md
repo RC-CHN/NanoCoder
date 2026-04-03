@@ -60,6 +60,14 @@ pip install nanocoderagent
 # Kimi K2.5
 export OPENAI_API_KEY=你的key OPENAI_BASE_URL=https://api.moonshot.ai/v1
 nanocoder -m kimi-k2.5
+```
+
+或使用 `.env` 文件配置（参考 `.env.example`）：
+
+```bash
+cp .env.example .env
+# 编辑 .env 填入你的配置
+nanocoder
 
 # Claude Opus 4.6（通过 OpenRouter）
 export OPENAI_API_KEY=你的key OPENAI_BASE_URL=https://openrouter.ai/api/v1

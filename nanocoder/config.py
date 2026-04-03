@@ -2,6 +2,25 @@
 
 import os
 from dataclasses import dataclass
+from pathlib import Path
+
+# Load .env file if exists
+try:
+    from dotenv import load_dotenv
+    # Load from current directory and parent directories
+    load_dotenv()
+    # Also try to load from project root if in subdirectory
+    project_root = Path.cwd()
+    for _ in range(3):  # Search up to 3 levels
+        env_file = project_root / ".env"
+        if env_file.exists():
+            load_dotenv(env_file)
+            break
+        if project_root.parent == project_root:
+            break
+        project_root = project_root.parent
+except ImportError:
+    pass  # python-dotenv not installed, skip
 
 
 @dataclass

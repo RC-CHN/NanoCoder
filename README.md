@@ -60,6 +60,14 @@ Pick your model — any OpenAI-compatible API works:
 # Kimi K2.5
 export OPENAI_API_KEY=your-key OPENAI_BASE_URL=https://api.moonshot.ai/v1
 nanocoder -m kimi-k2.5
+```
+
+Or use a `.env` file for configuration (see `.env.example`):
+
+```bash
+cp .env.example .env
+# Edit .env with your settings
+nanocoder
 
 # Claude Opus 4.6 (via OpenRouter)
 export OPENAI_API_KEY=your-key OPENAI_BASE_URL=https://openrouter.ai/api/v1
