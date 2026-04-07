@@ -70,23 +70,33 @@ def main():
     )
     agent = Agent(llm=llm, max_context_tokens=config.max_context_tokens)
 
-    # resume saved session
-    if args.resume:
-        loaded = load_session(args.resume)
-        if loaded:
-            agent.messages, loaded_model = loaded
-            console.print(f"[green]Resumed session: {args.resume}[/green]")
-        else:
-            console.print(f"[red]Session '{args.resume}' not found.[/red]")
-            sys.exit(1)
+    # Initialize MCP connections if configured
+    mcp_manager = None
+    if config.mcp_servers:
+        mcp_manager = _init_mcp(config.mcp_servers, agent)
 
-    # one-shot mode
-    if args.prompt:
-        _run_once(agent, args.prompt)
-        return
+    try:
+        # resume saved session
+        if args.resume:
+            loaded = load_session(args.resume)
+            if loaded:
+                agent.messages, loaded_model = loaded
+                console.print(f"[green]Resumed session: {args.resume}[/green]")
+            else:
+                console.print(f"[red]Session '{args.resume}' not found.[/red]")
+                sys.exit(1)
 
-    # interactive REPL
-    _repl(agent, config)
+        # one-shot mode
+        if args.prompt:
+            _run_once(agent, args.prompt)
+            return
+
+        # interactive REPL
+        _repl(agent, config)
+    finally:
+        # Cleanup MCP connections
+        if mcp_manager:
+            _cleanup_mcp(mcp_manager)
 
 
 def _run_once(agent: Agent, prompt: str):
@@ -113,12 +123,19 @@ def _repl(agent: Agent, config: Config):
 
     hist_path = os.path.expanduser("~/.nanocoder_history")
     history = FileHistory(hist_path)
+    
+    # Track current session for auto-save
+    current_session_id = None
 
     while True:
         try:
             user_input = pt_prompt("You > ", history=history).strip()
         except (EOFError, KeyboardInterrupt):
             console.print("\nBye!")
+            # Auto-save on exit
+            if agent.messages:
+                sid = save_session(agent.messages, config.model, current_session_id)
+                console.print(f"[dim]Session auto-saved: {sid}[/dim]")
             break
 
         if not user_input:
@@ -126,6 +143,10 @@ def _repl(agent: Agent, config: Config):
 
         # built-in commands
         if user_input.lower() in ("quit", "exit", "/quit", "/exit"):
+            # Auto-save on exit
+            if agent.messages:
+                sid = save_session(agent.messages, config.model, current_session_id)
+                console.print(f"[dim]Session auto-saved: {sid}[/dim]")
             break
         if user_input == "/help":
             _show_help()
@@ -157,7 +178,8 @@ def _repl(agent: Agent, config: Config):
                 console.print(f"[dim]Nothing to compress ({before} tokens, {len(agent.messages)} messages)[/dim]")
             continue
         if user_input == "/save":
-            sid = save_session(agent.messages, config.model)
+            sid = save_session(agent.messages, config.model, current_session_id)
+            current_session_id = sid  # Track for subsequent auto-saves
             console.print(f"[green]Session saved: {sid}[/green]")
             console.print(f"Resume with: nanocoder -r {sid}")
             continue
@@ -212,3 +234,29 @@ def _show_help():
 def _brief(kwargs: dict, maxlen: int = 80) -> str:
     s = ", ".join(f"{k}={repr(v)[:40]}" for k, v in kwargs.items())
     return s[:maxlen] + ("..." if len(s) > maxlen else "")
+
+
+def _init_mcp(mcp_servers, agent: Agent):
+    """Initialize MCP server connections and register tools."""
+    from .mcp.tool_adapter import MCPToolManager
+    
+    manager = MCPToolManager()
+    manager.start()  # Start background event loop
+    
+    for server_config in mcp_servers:
+        success = manager.connect_server(server_config)
+        if not success:
+            console.print(f"[yellow]Warning: Failed to connect to MCP server '{server_config.name}'[/yellow]")
+    
+    # Register MCP tools with the agent
+    if manager.tools:
+        agent.add_tools(manager.tools)
+        console.print(f"[green]Loaded {len(manager.tools)} MCP tools from {len(mcp_servers)} server(s)[/green]")
+    
+    return manager
+
+
+def _cleanup_mcp(manager):
+    """Clean up MCP connections on exit."""
+    manager.disconnect_all()
+    manager.stop()

@@ -9,6 +9,7 @@ It keeps looping until the LLM responds with plain text (no tool calls),
 which means it's done working and ready to report back.
 """
 
+import asyncio
 import concurrent.futures
 from .llm import LLM
 from .tools import ALL_TOOLS, get_tool
@@ -37,6 +38,18 @@ class Agent:
         for t in self.tools:
             if isinstance(t, AgentTool):
                 t._parent_agent = self
+    
+    def add_tools(self, tools: list[Tool]):
+        """Add additional tools (e.g., from MCP servers)."""
+        self.tools.extend(tools)
+        self._system = system_prompt(self.tools)  # Regenerate system prompt
+    
+    def get_tool(self, name: str) -> Tool | None:
+        """Look up a tool by name, including MCP tools."""
+        for t in self.tools:
+            if t.name == name:
+                return t
+        return None
 
     def _full_messages(self) -> list[dict]:
         return [{"role": "system", "content": self._system}] + self.messages
@@ -92,7 +105,8 @@ class Agent:
 
     def _exec_tool(self, tc) -> str:
         """Execute a single tool call, returning the result string."""
-        tool = get_tool(tc.name)
+        # First check agent's tools (includes MCP tools), then fall back to global registry
+        tool = self.get_tool(tc.name) or get_tool(tc.name)
         if tool is None:
             return f"Error: unknown tool '{tc.name}'"
         try:
